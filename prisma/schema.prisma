@@ -1,0 +1,453 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  role          UserRole @default(PUBLIC)
+  phone         String?
+  location      String?
+  verified      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  reports       Report[]
+  donations     Donation[]
+  shelterUsers  ShelterUser[]
+  iotDevices    IoTDevice[]
+  
+  @@map("users")
+}
+
+enum UserRole {
+  GOVERNMENT
+  NGO
+  PUBLIC
+  FIRST_RESPONDER
+  ADMIN
+}
+
+// Disaster and Alert Management
+model Disaster {
+  id          String      @id @default(cuid())
+  type        DisasterType
+  severity    SeverityLevel
+  title       String
+  description String
+  location    String
+  latitude    Float?
+  longitude   Float?
+  status      DisasterStatus @default(ACTIVE)
+  startTime   DateTime
+  endTime     DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Relations
+  alerts      Alert[]
+  reports     Report[]
+  shelters    Shelter[]
+  iotData     IoTData[]
+  donations   Donation[]
+  analytics   Analytics[]
+  
+  @@map("disasters")
+}
+
+enum DisasterType {
+  FLOOD
+  EARTHQUAKE
+  FIRE
+  STORM
+  HURRICANE
+  TORNADO
+  TSUNAMI
+  WILDFIRE
+  LANDSLIDE
+  OTHER
+}
+
+enum SeverityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DisasterStatus {
+  ACTIVE
+  MONITORING
+  RESOLVED
+  ARCHIVED
+}
+
+model Alert {
+  id          String       @id @default(cuid())
+  disasterId  String
+  type        AlertType
+  severity    SeverityLevel
+  title       String
+  message     String
+  location    String?
+  affectedRadius Float?
+  status      AlertStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  // Relations
+  disaster    Disaster     @relation(fields: [disasterId], references: [id], onDelete: Cascade)
+  
+  @@map("alerts")
+}
+
+enum AlertType {
+  EVACUATION
+  SHELTER_IN_PLACE
+  EMERGENCY_SERVICES
+  WEATHER_WARNING
+  ROAD_CLOSURE
+  UTILITY_OUTAGE
+  OTHER
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  EXPIRED
+}
+
+// Shelter Management
+model Shelter {
+  id            String        @id @default(cuid())
+  disasterId    String?
+  name          String
+  type          ShelterType
+  location      String
+  latitude      Float
+  longitude     Float
+  capacity      Int
+  currentOccupancy Int @default(0)
+  status        ShelterStatus @default(OPEN)
+  facilities    String        // JSON array of facilities
+  contactInfo   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  // Relations
+  disaster      Disaster?     @relation(fields: [disasterId], references: [id])
+  users         ShelterUser[]
+  resources     ShelterResource[]
+  
+  @@map("shelters")
+}
+
+enum ShelterType {
+  EMERGENCY_SHELTER
+  MEDICAL_FACILITY
+  SCHOOL
+  COMMUNITY_CENTER
+  CHURCH
+  HOTEL
+  TEMPORARY_CAMP
+  OTHER
+}
+
+enum ShelterStatus {
+  OPEN
+  FULL
+  CLOSED
+  MAINTENANCE
+}
+
+model ShelterUser {
+  id         String   @id @default(cuid())
+  userId     String
+  shelterId  String
+  checkInAt  DateTime @default(now())
+  checkOutAt DateTime?
+  
+  // Relations
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shelter    Shelter  @relation(fields: [shelterId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, shelterId])
+  @@map("shelter_users")
+}
+
+model ShelterResource {
+  id          String    @id @default(cuid())
+  shelterId   String
+  name        String
+  type        ResourceType
+  quantity    Int
+  unit        String
+  status      ResourceStatus @default(AVAILABLE)
+  lastUpdated DateTime  @default(now())
+  
+  // Relations
+  shelter     Shelter   @relation(fields: [shelterId], references: [id], onDelete: Cascade)
+  
+  @@map("shelter_resources")
+}
+
+enum ResourceType {
+  FOOD
+  WATER
+  MEDICAL_SUPPLIES
+  BLANKETS
+  CLOTHING
+  HYGIENE_PRODUCTS
+  COMMUNICATION_EQUIPMENT
+  POWER_GENERATORS
+  TRANSPORTATION
+  OTHER
+}
+
+enum ResourceStatus {
+  AVAILABLE
+  LOW_STOCK
+  OUT_OF_STOCK
+  RESERVED
+}
+
+// IoT Data Management
+model IoTDevice {
+  id          String      @id @default(cuid())
+  userId      String?
+  name        String
+  type        DeviceType
+  location    String
+  latitude    Float?
+  longitude   Float?
+  status      DeviceStatus @default(ACTIVE)
+  lastSeen    DateTime?
+  config      String?     // JSON configuration
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Relations
+  user        User?       @relation(fields: [userId], references: [id])
+  data        IoTData[]
+  
+  @@map("iot_devices")
+}
+
+enum DeviceType {
+  WATER_LEVEL_SENSOR
+  SEISMIC_SENSOR
+  WEATHER_STATION
+  AIR_QUALITY_SENSOR
+  CROWD_DENSITY_SENSOR
+  DRONE
+  SURVEILLANCE_CAMERA
+  OTHER
+}
+
+enum DeviceStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+  MAINTENANCE
+}
+
+model IoTData {
+  id          String   @id @default(cuid())
+  deviceId    String
+  disasterId  String?
+  type        SensorType
+  value       Float
+  unit        String
+  location    String?
+  timestamp   DateTime @default(now())
+  status      DataStatus @default(NORMAL)
+  
+  // Relations
+  device      IoTDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  disaster    Disaster? @relation(fields: [disasterId], references: [id])
+  
+  @@map("iot_data")
+}
+
+enum SensorType {
+  WATER_LEVEL
+  SEISMIC_ACTIVITY
+  TEMPERATURE
+  HUMIDITY
+  AIR_PRESSURE
+  WIND_SPEED
+  CROWD_DENSITY
+  AIR_QUALITY
+  RAINFALL
+  OTHER
+}
+
+enum DataStatus {
+  NORMAL
+  WARNING
+  CRITICAL
+  ERROR
+}
+
+// Report Management
+model Report {
+  id          String       @id @default(cuid())
+  userId      String
+  disasterId  String?
+  type        ReportType
+  title       String
+  description String
+  location    String
+  latitude    Float?
+  longitude   Float?
+  severity    SeverityLevel
+  status      ReportStatus @default(PENDING)
+  mediaUrls   String?      // JSON array of media URLs
+  verified    Boolean      @default(false)
+  verifiedBy  String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  disaster    Disaster?    @relation(fields: [disasterId], references: [id])
+  
+  @@map("reports")
+}
+
+enum ReportType {
+  DAMAGE_ASSESSMENT
+  EMERGENCY_SITUATION
+  RESOURCE_REQUEST
+  MISSING_PERSON
+  INFRASTRUCTURE_ISSUE
+  WEATHER_OBSERVATION
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  IN_REVIEW
+  VERIFIED
+  RESOLVED
+  REJECTED
+}
+
+// Blockchain and Financial Management
+model Donation {
+  id                String           @id @default(cuid())
+  userId            String
+  disasterId        String?
+  amount            Float
+  currency          String           @default("USD")
+  transactionHash   String?          // Blockchain transaction hash
+  status            DonationStatus    @default(PENDING)
+  donorName         String?
+  donorEmail        String?
+  anonymous         Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  
+  // Relations
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  disaster          Disaster?        @relation(fields: [disasterId], references: [id])
+  
+  @@map("donations")
+}
+
+enum DonationStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model BlockchainTransaction {
+  id                String           @id @default(cuid())
+  transactionHash   String           @unique
+  blockNumber       Int?
+  fromAddress       String
+  toAddress         String
+  amount            Float
+  currency          String
+  type              TransactionType
+  status            TransactionStatus @default(PENDING)
+  gasUsed           Int?
+  gasPrice          Float?
+  timestamp         DateTime         @default(now())
+  metadata          String?          // JSON metadata
+  
+  @@map("blockchain_transactions")
+}
+
+enum TransactionType {
+  DONATION
+  RESOURCE_TRANSFER
+  PAYMENT
+  ESCROW
+  OTHER
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  CANCELLED
+}
+
+// Analytics and Prediction
+model Analytics {
+  id                String           @id @default(cuid())
+  disasterId        String?
+  type              AnalyticsType
+  title             String
+  description       String?
+  data              String           // JSON data
+  metrics           String           // JSON metrics
+  predictions       String?          // JSON predictions
+  accuracy          Float?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  
+  // Relations
+  disaster          Disaster?        @relation(fields: [disasterId], references: [id])
+  
+  @@map("analytics")
+}
+
+enum AnalyticsType {
+  AFFECTED_AREAS
+  RESOURCE_UTILIZATION
+  PREDICTION_ACCURACY
+  RESPONSE_TIME
+  EVACUATION_ANALYSIS
+  DAMAGE_ASSESSMENT
+  OTHER
+}
+
+// Legacy models (to be removed)
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

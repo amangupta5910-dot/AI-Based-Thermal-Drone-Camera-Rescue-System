@@ -1,3 +1,5 @@
+# AI Thermal Drone Camera Rescue System
+AI Based Thermal Drone Camera Rescue System is an advanced AI-driven solution that utilizes thermal imaging to detect humans and fire in real-time. It enhances rescue operations by providing accurate detection, live monitoring, and improved decision-making in emergency scenarios.
 ### 🎯 Core Framework
 - **⚡ Next.js 15** - The React framework for production with App Router
 - **📘 TypeScript 5** - Type-safe JavaScript for better developer experience
